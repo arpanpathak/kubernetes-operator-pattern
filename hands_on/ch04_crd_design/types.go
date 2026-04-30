@@ -115,10 +115,17 @@ func (in *AppServiceList) DeepCopyObject() runtime.Object {
 	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		inItems, outItems := &in.Items, &out.Items
+		
+		// CRITICAL: We MUST allocate a brand new underlying array for the slice in memory. 
+		// If we simply wrote `out.Items = in.Items`, Go would copy the slice header, but both 
+		// the new and old slice would point to the exact same underlying array in RAM. 
+		// Any mutation to `out` would mutate `in`, completely defeating the purpose of a DeepCopy!
 		*outItems = make([]AppService, len(*inItems))
+		
 		for i := range *inItems {
-			// Deep clone every single item in the array!
-			(*inItems)[i] = *(*outItems)[i].DeepCopyObject().(*AppService)
+			// We iterate through the original array (inItems), call DeepCopyObject on each individual item,
+			// safely cast it back to an AppService struct, and store it in our newly allocated array (outItems).
+			(*outItems)[i] = *(*inItems)[i].DeepCopyObject().(*AppService)
 		}
 	}
 	return out 
