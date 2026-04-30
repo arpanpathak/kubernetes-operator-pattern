@@ -21,13 +21,17 @@ import (
 // This file demonstrates the exact architecture of a Custom Resource Definition 
 // implemented in Go, complete with OpenAPI Validation Markers and the 
 // mandatory DeepCopy implementations.
+//
+// Every line below, especially the `main()` bootstrap, is exhaustively documented
+// to explain exactly what the controller-runtime engine is doing under the hood.
 // ============================================================================
 
 // ----------------------------------------------------------------------------
 // API Registration (The Scheme Builder)
 // ----------------------------------------------------------------------------
-// We must declare our API Group ("webapp.mydomain.com") and Version ("v1").
-// The API Server will dynamically generate REST endpoints at this path.
+// GroupVersion defines the REST API path that Kubernetes will dynamically
+// generate for us. In this case, our API will be reachable at:
+// /apis/webapp.mydomain.com/v1/...
 var GroupVersion = schema.GroupVersion{Group: "webapp.mydomain.com", Version: "v1"}
 
 // SchemeBuilder is a helper that adds our custom Go structs to the global Scheme.
@@ -95,6 +99,8 @@ func (in *AppService) DeepCopyObject() runtime.Object {
 // The List Object
 // ----------------------------------------------------------------------------
 // +kubebuilder:object:root=true
+// The List object is required by the API server so that `kubectl get appservices`
+// has a properly formatted JSON array to return.
 type AppServiceList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -111,6 +117,7 @@ func (in *AppServiceList) DeepCopyObject() runtime.Object {
 		inItems, outItems := &in.Items, &out.Items
 		*outItems = make([]AppService, len(*inItems))
 		for i := range *inItems {
+			// Deep clone every single item in the array!
 			(*inItems)[i] = *(*outItems)[i].DeepCopyObject().(*AppService)
 		}
 	}
@@ -121,27 +128,62 @@ func (in *AppServiceList) DeepCopyObject() runtime.Object {
 // Main Bootstrap
 // ----------------------------------------------------------------------------
 func main() {
+	// ------------------------------------------------------------------------
+	// 1. Logger Initialization
+	// ------------------------------------------------------------------------
+	// We use the high-performance Zap logger provided by controller-runtime.
+	// Development mode enables human-readable stack traces and debug-level logs,
+	// whereas production mode outputs structured JSON for log aggregators (like ELK).
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	// ------------------------------------------------------------------------
+	// 2. Scheme Registration
+	// ------------------------------------------------------------------------
+	// The Scheme is a massive, thread-safe registry that maps Go structs
+	// (like `corev1.Pod` or our `AppService`) to their corresponding
+	// Kubernetes API Group, Version, and Kind (GVK) strings.
 	scheme := runtime.NewScheme()
+	
+	// First, we register all native Kubernetes types (Pods, Services, etc.)
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(SchemeBuilder.AddToScheme(scheme)) // CRITICAL: Register our Custom Types!
+	
+	// CRITICAL: Next, we register our Custom Resource types. 
+	// If we forget this line, the Manager will panic and crash when it receives
+	// an `AppService` event from the API Server because it won't know how to decode it.
+	utilruntime.Must(SchemeBuilder.AddToScheme(scheme)) 
 
 	fmt.Println("[BOOTSTRAP] Validating Schema Registration...")
+
+	// ------------------------------------------------------------------------
+	// 3. Manager Instantiation
+	// ------------------------------------------------------------------------
+	// The Manager is the orchestrator of the entire controller-runtime framework.
+	// When we call NewManager, it automatically finds our Kubeconfig (if running
+	// locally) or the injected ServiceAccount token (if running inside a Pod),
+	// and establishes a connection pool to the API Server.
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
-		Port:   9443,
+		Port:   9443, // The default port for the embedded Admission Webhook server.
 	})
 	if err != nil {
-		fmt.Printf("CRITICAL: Unable to start manager: %v\n", err)
+		fmt.Printf("CRITICAL: Unable to start manager. Is your cluster running?: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Println("[SUCCESS] API Types successfully registered with the Scheme.")
 	fmt.Println("[BOOTSTRAP] Starting empty Manager (No controllers attached yet)...")
+
+	// ------------------------------------------------------------------------
+	// 4. Starting the Event Loop
+	// ------------------------------------------------------------------------
+	// mgr.Start blocks the main thread permanently. It boots up the Informers
+	// and metrics servers. 
+	// Note: In this specific chapter, we haven't attached a Reconciler yet, 
+	// so the Manager just sits idly, proving that our Scheme and API Types 
+	// are perfectly valid and the binary compiles.
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		fmt.Printf("CRITICAL: Problem running manager: %v\n", err)
 		os.Exit(1)
