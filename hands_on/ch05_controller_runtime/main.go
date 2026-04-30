@@ -76,7 +76,6 @@ func main() {
 	// The Manager orchestrates the API connection, Informers, Webhooks, and Metrics.
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: runtime.NewScheme(), // In a real project, we populate this Scheme first
-		Port:   9443,
 	})
 	if err != nil {
 		fmt.Printf("[CRITICAL ERROR] Unable to start manager: %v\n", err)

@@ -173,7 +173,6 @@ func main() {
 	// and establishes a connection pool to the API Server.
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
-		Port:   9443, // The default port for the embedded Admission Webhook server.
 	})
 	if err != nil {
 		fmt.Printf("CRITICAL: Unable to start manager. Is your cluster running?: %v\n", err)

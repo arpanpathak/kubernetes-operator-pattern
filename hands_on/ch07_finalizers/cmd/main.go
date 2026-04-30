@@ -72,7 +72,6 @@ func main() {
 	fmt.Println("[BOOTSTRAP] Initializing Finalizer Manager...")
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
-		Port:   9443, // The default port for the embedded Admission Webhook server.
 	})
 	if err != nil {
 		fmt.Printf("CRITICAL: Unable to start manager. This usually means the API server is unreachable: %v\n", err)

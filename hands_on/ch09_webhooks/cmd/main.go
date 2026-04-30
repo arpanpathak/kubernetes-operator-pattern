@@ -50,7 +50,6 @@ func main() {
 	fmt.Println("[BOOTSTRAP] Initializing Webhook Manager...")
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
-		Port:   9443,
 	})
 	if err != nil {
 		fmt.Printf("CRITICAL: Unable to start manager: %v\n", err)
